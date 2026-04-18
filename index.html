@@ -195,10 +195,11 @@
 
         const App = () => {
             // 앱 상태 관리
-            const [phase, setPhase] = useState('loading'); // loading > select_student > start > intro > level_select > activity > speak_mission > report
+            const [phase, setPhase] = useState('loading'); // loading > mic_permission > select_student > start > intro > level_select > activity > speak_mission > report
             const [dbData, setDbData] = useState({ students: [], questions: [] });
             const [currStudent, setCurrStudent] = useState("");
             const scale = useScale(1024, 768); // 베이스 화면 사이즈 1024x768
+            const [micGranted, setMicGranted] = useState(false);
 
             const [qIndex, setQIndex] = useState(0);
             const [activeQuestions, setActiveQuestions] = useState([]);
@@ -207,7 +208,7 @@
             const [history, setHistory] = useState([]);
             const [feedback, setFeedback] = useState(null);
             const [isReviewMode, setIsReviewMode] = useState(false);
-            const [isSoundOn, setIsSoundOn] = useState(true);
+            const [isSoundOn, setIsSoundOn] = useState(false);
             const [showConfetti, setShowConfetti] = useState(false);
 
             // 드래그/문장 맞추기 상태
@@ -222,6 +223,21 @@
             const currentQList = isReviewMode ? reviewQuestions : activeQuestions;
             const currentQ = currentQList[qIndex];
 
+            // 마이크 권한 요청 함수
+            const requestMicPermission = async () => {
+                try {
+                    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                    // 권한만 받고 스트림은 바로 해제
+                    stream.getTracks().forEach(track => track.stop());
+                    setMicGranted(true);
+                } catch (err) {
+                    console.warn("마이크 권한 거부:", err);
+                    // 거부해도 진행 가능 (speak_mission에서 skip 가능)
+                    setMicGranted(false);
+                }
+                setPhase('select_student');
+            };
+
             // 데이터 로딩
             useEffect(() => {
                 const loadData = async () => {
@@ -229,7 +245,7 @@
                         console.log("GAS_URL이 없습니다. 테스트 모드로 실행합니다.");
                         setTimeout(() => {
                             setDbData(MOCK_DATA);
-                            setPhase('select_student');
+                            setPhase('mic_permission');
                         }, 1000);
                         return;
                     }
@@ -238,13 +254,13 @@
                         const data = await res.json();
                         if (data.status === 'success') {
                             setDbData({ students: data.students, questions: data.questions });
-                            setPhase('select_student');
+                            setPhase('mic_permission');
                         } else throw new Error(data.message);
                     } catch (err) {
                         console.error("데이터 로딩 실패:", err);
                         alert("구글 시트 연동 실패! 테스트 모드로 전환합니다.");
                         setDbData(MOCK_DATA);
-                        setPhase('select_student');
+                        setPhase('mic_permission');
                     }
                 };
                 loadData();
@@ -465,6 +481,14 @@
             // ==========================================
             // 렌더링 영역 (Scale Wrapper 내부에 위치)
             // ==========================================
+            // 스피커 토글 버튼 (모든 화면 공통)
+            const SoundToggle = ({ position = 'top-right' }) => (
+                <button onClick={() => setIsSoundOn(!isSoundOn)}
+                    className={`absolute top-6 right-6 z-50 p-3 rounded-2xl shadow-md border border-slate-100 transition-all ${isSoundOn ? 'bg-orange-100 text-orange-600' : 'bg-white/80 text-slate-400 hover:text-slate-600'}`}>
+                    {isSoundOn ? <Volume2 size={28} /> : <VolumeX size={28} />}
+                </button>
+            );
+
             const renderPhase = () => {
                 if (phase === 'loading') {
                     return (
@@ -475,20 +499,58 @@
                     );
                 }
 
+                if (phase === 'mic_permission') {
+                    return (
+                        <div className="flex flex-col items-center justify-center h-full w-full p-8 text-center bg-slate-50 rounded-[3rem] relative">
+                            <SoundToggle />
+                            <div className="bg-green-100 p-8 rounded-full mb-8 shadow-lg">
+                                <Mic size={80} className="text-green-600" />
+                            </div>
+                            <h1 className="text-4xl font-black text-slate-800 mb-4 word-keep">마이크 사용을 허용해주세요!</h1>
+                            <p className="text-xl text-slate-500 mb-10 word-keep leading-relaxed">나중에 문장을 소리 내어 읽는 활동이 있어요.<br/>아래 버튼을 눌러 마이크를 미리 허용해주세요.</p>
+                            <button onClick={requestMicPermission}
+                                className="w-full max-w-sm py-6 bg-green-500 hover:bg-green-600 text-white rounded-3xl font-black text-3xl shadow-xl active:scale-95 flex items-center justify-center gap-3 transition-all mb-4">
+                                <Mic size={32} /> 마이크 허용하기
+                            </button>
+                            <button onClick={() => { setMicGranted(false); setPhase('select_student'); }}
+                                className="text-slate-400 hover:text-slate-600 font-bold text-lg mt-2 underline">
+                                마이크 없이 진행하기
+                            </button>
+                        </div>
+                    );
+                }
+
                 if (phase === 'select_student') {
                     return (
-                        <div className="flex flex-col items-center justify-center h-full w-full p-8 text-center bg-blue-50 rounded-[3rem]">
+                        <div className="flex flex-col items-center justify-center h-full w-full p-8 text-center bg-blue-50 rounded-[3rem] relative">
+                            <SoundToggle />
                             <div className="bg-white px-6 py-2 rounded-full font-bold select-none text-blue-600 mb-6 flex items-center gap-2 text-xl shadow-sm border border-blue-100">
                                 <Users size={24} /> 내 이름 찾기
                             </div>
-                            <h1 className="text-4xl font-black text-slate-800 mb-10">목록에서 내 이름을 선택해주세요!</h1>
-                            <div className="flex flex-wrap justify-center gap-4 max-w-4xl bg-white p-8 border-4 border-blue-100 rounded-3xl shadow-xl">
-                                {dbData.students.map((name, i) => (
-                                    <button key={i} onClick={() => { setCurrStudent(name); initAudioContext(); setPhase('start'); }}
-                                        className="px-8 py-4 bg-white border-4 border-blue-200 hover:border-blue-500 hover:bg-blue-50 text-blue-800 font-bold text-3xl rounded-[2rem] active:scale-95 transition-all shadow-md">
-                                        {name}
-                                    </button>
-                                ))}
+                            <h1 className="text-4xl font-black text-slate-800 mb-10">드롭다운을 눌러 내 이름을 선택해주세요!</h1>
+                            <div className="flex flex-col items-center justify-center gap-6 w-full max-w-xl bg-white p-10 border-4 border-blue-100 rounded-3xl shadow-xl">
+                                <div className="relative w-full">
+                                    <select 
+                                        value={currStudent}
+                                        onChange={(e) => setCurrStudent(e.target.value)}
+                                        className="w-full text-3xl p-6 rounded-2xl border-4 border-blue-200 bg-slate-50 hover:bg-blue-50 text-slate-700 font-bold focus:outline-none focus:border-blue-500 appearance-none text-center cursor-pointer shadow-inner transition-colors"
+                                    >
+                                        <option value="" disabled>내 이름을 골라주세요 ▼</option>
+                                        {dbData.students.map((name, i) => (
+                                            <option key={i} value={name}>{name}</option>
+                                        ))}
+                                    </select>
+                                    <div className="pointer-events-none absolute inset-y-0 right-6 flex items-center px-2 text-blue-500">
+                                        <svg className="fill-current h-8 w-8" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20"><path d="M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z"/></svg>
+                                    </div>
+                                </div>
+                                <button 
+                                    onClick={() => { initAudioContext(); setPhase('start'); }} 
+                                    disabled={!currStudent}
+                                    className="w-full mt-4 px-8 py-6 bg-blue-600 hover:bg-blue-700 disabled:bg-slate-300 text-white font-black text-3xl rounded-[2rem] shadow-lg active:scale-95 transition-all"
+                                >
+                                    선택 완료
+                                </button>
                             </div>
                         </div>
                     );
@@ -496,7 +558,8 @@
 
                 if (phase === 'start') {
                     return (
-                        <div className="flex flex-col items-center justify-center h-full w-full bg-orange-50 p-6 text-center select-none rounded-[3rem]">
+                        <div className="flex flex-col items-center justify-center h-full w-full bg-orange-50 p-6 text-center select-none rounded-[3rem] relative">
+                            <SoundToggle />
                             <motion.div animate={{ scale: [1, 1.1, 1] }} transition={{ repeat: Infinity, duration: 2 }} className="mb-8 cursor-pointer" onClick={() => setPhase('intro')}>
                                 <PlayCircle size={100} className="text-orange-500 fill-white" />
                             </motion.div>
@@ -508,7 +571,8 @@
 
                 if (phase === 'intro') {
                     return (
-                        <div className="flex flex-col items-center justify-center h-full w-full bg-orange-50 p-6 text-center select-none rounded-[3rem]">
+                        <div className="flex flex-col items-center justify-center h-full w-full bg-orange-50 p-6 text-center select-none rounded-[3rem] relative">
+                            <SoundToggle />
                             <div className="scale-150 mb-10"><PencilFairy /></div>
                             <div className="inline-block bg-white text-orange-600 px-6 py-2 rounded-full font-bold mb-6 shadow-sm border border-orange-100 text-xl">국어 1-2학년군</div>
                             <h1 className="text-5xl font-black text-slate-800 mb-8 leading-tight word-keep">그림에 어울리는 문장 완성하기</h1>
@@ -527,7 +591,8 @@
 
                 if (phase === 'level_select') {
                     return (
-                        <div className="flex flex-col items-center justify-center h-full w-full bg-orange-50 p-6 text-center select-none rounded-[3rem]">
+                        <div className="flex flex-col items-center justify-center h-full w-full bg-orange-50 p-6 text-center select-none rounded-[3rem] relative">
+                            <SoundToggle />
                             <div className="scale-125 mb-8"><PencilFairy /></div>
                             <h2 className="text-4xl font-black text-slate-800 mb-8">몇 문제를 풀어볼까요?</h2>
                             <div className="grid grid-cols-1 gap-6 w-full max-w-sm">
@@ -545,14 +610,13 @@
                 if (phase === 'activity') {
                     return (
                         <div className="flex flex-col items-center justify-center h-full w-full bg-slate-50 p-8 relative select-none rounded-[3rem]">
+                            <SoundToggle />
                             <div className="w-full max-w-3xl flex justify-between items-center mb-6 z-20 flex-shrink-0">
                                 <button onClick={() => window.location.reload()} className="p-4 bg-white rounded-2xl shadow-md border border-slate-100 text-slate-400 hover:text-orange-500"><Home size={32} /></button>
                                 <div className="bg-white px-8 py-3 rounded-full shadow-md border border-slate-100 font-black text-orange-600 flex items-center gap-2 text-2xl">
                                     {isReviewMode ? <span className="text-red-500 flex items-center gap-2"><RefreshCcw size={24} /> 복습 중</span> : <span>문제 {qIndex + 1} / {currentQList.length}</span>}
                                 </div>
-                                <button onClick={() => setIsSoundOn(!isSoundOn)} className={`p-4 rounded-2xl shadow-md border border-slate-100 ${isSoundOn ? 'bg-orange-100 text-orange-600' : 'bg-white text-slate-400'}`}>
-                                    {isSoundOn ? <Volume2 size={32} /> : <VolumeX size={32} />}
-                                </button>
+                                <div className="w-[64px]"></div>
                             </div>
 
                             <div className="w-full max-w-3xl flex-1 max-h-[850px] bg-white rounded-[3rem] shadow-2xl p-6 md:p-10 text-center border-b-8 border-orange-100 relative z-10 flex flex-col justify-center overflow-hidden">
@@ -596,6 +660,7 @@
                 if (phase === 'speak_mission') {
                     return (
                         <div className="flex flex-col items-center justify-center h-full w-full bg-green-50 p-8 relative select-none rounded-[3rem]">
+                            <SoundToggle />
                             <div className="w-full max-w-3xl bg-white rounded-[3rem] shadow-2xl p-10 text-center border-b-8 border-green-200 relative z-10 flex flex-col justify-center h-full">
                                 <div className="flex-1 flex flex-col items-center justify-center">
                                     <h2 className="text-3xl font-black mb-8 text-green-600 flex justify-center items-center gap-3">
@@ -633,39 +698,40 @@
 
                 if (phase === 'report') {
                     return (
-                        <div className="flex flex-col items-center justify-center h-full w-full bg-blue-50 p-8 text-center select-none rounded-[3rem]">
+                        <div className="flex flex-col items-center h-full w-full bg-blue-50 p-4 pt-5 text-center select-none rounded-[3rem] relative overflow-hidden">
+                            <SoundToggle />
                             {showConfetti && <div className="fixed inset-0 pointer-events-none bg-black/5 z-0" />}
-                            <h1 className="text-4xl font-black text-blue-800 mb-6 flex items-center justify-center gap-3">
-                                <Trophy size={40} className="text-yellow-500" /> {currStudent}의 훌륭한 배움기록표
+                            <h1 className="text-2xl font-black text-blue-800 mb-3 flex items-center justify-center gap-2 flex-shrink-0">
+                                <Trophy size={28} className="text-yellow-500" /> {currStudent}의 훌륭한 배움기록표
                             </h1>
 
-                            <div className="bg-white w-full max-w-3xl p-8 rounded-[2.5rem] shadow-xl border-4 border-blue-200 mb-8 relative flex-shrink-0">
-                                <div className="grid grid-cols-2 gap-4 mb-8">
-                                    <div className="bg-blue-50 p-6 rounded-[2rem] flex flex-col justify-center items-center">
-                                        <p className="text-slate-500 font-bold mb-2 text-xl">전체 문제</p>
-                                        <p className="text-6xl font-black text-blue-600">{activeQuestions.length}개</p>
+                            <div className="bg-white w-full max-w-3xl p-4 rounded-[2rem] shadow-xl border-3 border-blue-200 mb-3 flex-shrink-0">
+                                <div className="grid grid-cols-2 gap-3 mb-3">
+                                    <div className="bg-blue-50 p-3 rounded-xl flex flex-col justify-center items-center">
+                                        <p className="text-slate-500 font-bold text-base">전체 문제</p>
+                                        <p className="text-4xl font-black text-blue-600">{activeQuestions.length}개</p>
                                     </div>
-                                    <div className="bg-green-50 p-6 rounded-[2rem] flex flex-col justify-center items-center">
-                                        <p className="text-slate-500 font-bold mb-2 text-xl">한번에 성공!</p>
-                                        <p className="text-6xl font-black text-green-600">{history.filter(h => h.correct).length}개</p>
+                                    <div className="bg-green-50 p-3 rounded-xl flex flex-col justify-center items-center">
+                                        <p className="text-slate-500 font-bold text-base">한번에 성공!</p>
+                                        <p className="text-4xl font-black text-green-600">{history.filter(h => h.correct).length}개</p>
                                     </div>
                                 </div>
 
                                 {wrongList.length > 0 && !isReviewMode && (
-                                    <div className="mb-8 pt-4 border-t border-slate-200">
-                                        <p className="text-orange-500 font-bold mb-4 text-xl">아직 헷갈리는 문제가 {wrongList.length}개 있어요!</p>
-                                        <button onClick={startReview} className="w-full py-5 bg-orange-400 hover:bg-orange-500 text-white rounded-2xl font-bold shadow-md active:scale-95 transition-all flex justify-center items-center gap-2 text-2xl">
-                                            <RefreshCcw size={28} /> 틀린 문제 다시 풀기
+                                    <div className="mb-3 pt-2 border-t border-slate-200">
+                                        <p className="text-orange-500 font-bold mb-2 text-base">아직 헷갈리는 문제가 {wrongList.length}개 있어요!</p>
+                                        <button onClick={startReview} className="w-full py-3 bg-orange-400 hover:bg-orange-500 text-white rounded-xl font-bold shadow-md active:scale-95 transition-all flex justify-center items-center gap-2 text-lg">
+                                            <RefreshCcw size={20} /> 틀린 문제 다시 풀기
                                         </button>
                                     </div>
                                 )}
 
-                                <div className="text-left bg-slate-50 p-6 rounded-2xl flex-1 overflow-hidden flex flex-col max-h-[200px]">
-                                    <h3 className="text-2xl font-black text-slate-700 mb-4 flex items-center gap-2"><ClipboardList /> 배움 기록 내역</h3>
-                                    <ul className="space-y-3 flex-1 overflow-y-auto pr-4 custom-scrollbar">
+                                <div className="text-left bg-slate-50 p-3 rounded-xl overflow-hidden flex flex-col max-h-[120px]">
+                                    <h3 className="text-lg font-black text-slate-700 mb-2 flex items-center gap-2"><ClipboardList size={18}/> 배움 기록 내역</h3>
+                                    <ul className="space-y-1 flex-1 overflow-y-auto pr-2 custom-scrollbar">
                                         {history.map((h, idx) => (
-                                            <li key={idx} className="flex items-center gap-3 text-xl font-medium text-slate-600 border-b border-slate-200 pb-2">
-                                                {h.correct ? <Check className="text-green-500 flex-shrink-0" size={24} /> : <RefreshCcw className="text-orange-500 flex-shrink-0" size={24} />}
+                                            <li key={idx} className="flex items-center gap-2 text-base font-medium text-slate-600 border-b border-slate-200 pb-1">
+                                                {h.correct ? <Check className="text-green-500 flex-shrink-0" size={16} /> : <RefreshCcw className="text-orange-500 flex-shrink-0" size={16} />}
                                                 <span className={h.correct ? "" : "text-orange-500 font-bold"}>{h.question}</span>
                                             </li>
                                         ))}
@@ -673,12 +739,12 @@
                                 </div>
                             </div>
 
-                            <div className="flex gap-6 w-full max-w-3xl z-10 flex-shrink-0 justify-center">
-                                <button onClick={downloadStamp} className="flex-1 py-6 bg-green-500 hover:bg-green-600 text-white rounded-3xl font-black text-3xl shadow-xl active:scale-95 flex justify-center items-center gap-3 transition-all">
-                                    <Download size={32} /> 기록표 저장
+                            <div className="flex gap-3 w-full max-w-3xl z-10 flex-shrink-0 justify-center">
+                                <button onClick={downloadStamp} className="flex-1 py-4 bg-green-500 hover:bg-green-600 text-white rounded-2xl font-black text-xl shadow-xl active:scale-95 flex justify-center items-center gap-2 transition-all">
+                                    <Download size={24} /> 기록표 저장
                                 </button>
-                                <button onClick={() => window.location.reload()} className="flex-1 py-6 bg-white hover:bg-slate-100 text-slate-600 border-4 border-slate-200 rounded-3xl font-black text-3xl shadow active:scale-95 transition-all flex justify-center items-center gap-3">
-                                    <Home size={32} /> 처음으로
+                                <button onClick={() => window.location.reload()} className="flex-1 py-4 bg-white hover:bg-slate-100 text-slate-600 border-3 border-slate-200 rounded-2xl font-black text-xl shadow active:scale-95 transition-all flex justify-center items-center gap-2">
+                                    <Home size={24} /> 처음으로
                                 </button>
                             </div>
                         </div>
