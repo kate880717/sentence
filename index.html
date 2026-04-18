@@ -416,7 +416,6 @@
                     const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
                     const result = await uploadAudioToServer(audioBlob, currentQ.answer);
                     setRecordings(prev => [...prev, { sentence: currentQ.answer, localUrl: result.localUrl, fileUrl: result.fileUrl }]);
-                    setSpeechFeedback({ type: 'success', text: "녹음이 저장되었어요! ✅" });
                 }
             };
 
