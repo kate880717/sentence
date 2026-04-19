@@ -322,10 +322,15 @@
                     speak("정답입니다! 마이크 버튼을 누르고 전체 문장을 큰 소리로 읽어보세요!");
                 } else if (phase === 'report') {
                     speak("모든 활동이 끝났어요! 오늘 배움 기록 표를 살펴봅시다.");
+                }
+            }, [phase, qIndex, isReviewMode, feedback, isSoundOn]);
+
+            useEffect(() => {
+                if (phase === 'report') {
                     setShowConfetti(true);
                     saveResultToServer();
                 }
-            }, [phase, qIndex, isReviewMode, feedback, isSoundOn]);
+            }, [phase]);
 
             const saveResultToServer = async () => {
                 if (!GAS_URL) return;
