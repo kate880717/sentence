@@ -482,6 +482,8 @@ const App = () => {
 
   // 성찰 데이터
   const [reflectionAnswers, setReflectionAnswers] = useState({ what: '', how: '', next: '' });
+  const [reflectionRecording, setReflectionRecording] = useState(null); // 어떤 항목을 녹음 중인지
+  const reflectionRecognitionRef = useRef(null);
 
   const currentQList = isReviewMode ? reviewQuestions : activeQuestions;
   const currentQ = currentQList[qIndex];
@@ -992,7 +994,26 @@ const App = () => {
     </button>
   );
 
-  // 활동 안내 헤더 (각 활동 맨 위)
+  // 단계 표시 헤더 (맨 위 - 활동 단계만)
+  const PhaseHeader = ({ stepNum, totalSteps, label, color = "orange" }) => (
+    <div className={`flex items-center justify-center gap-2 mb-3 flex-shrink-0`}>
+      <div className={`bg-${color}-500 text-white px-4 py-1.5 rounded-full font-black text-sm shadow-md`}>
+        STEP {stepNum} / {totalSteps}
+      </div>
+      <div className={`bg-white border-2 border-${color}-300 px-4 py-1.5 rounded-full font-black text-${color}-700 text-base shadow-sm`}>
+        {label}
+      </div>
+    </div>
+  );
+
+  // 활동별 안내 (해당 영역 가까이 표시)
+  const InlineGuide = ({ children, color = "orange" }) => (
+    <div className={`bg-${color}-100 border-2 border-${color}-300 rounded-2xl px-4 py-2 my-2 shadow-sm`}>
+      <p className={`text-lg font-black text-${color}-700 word-keep text-center`}>👉 {children}</p>
+    </div>
+  );
+
+  // 활동 안내 헤더 (구버전 - 호환용)
   const ActivityGuide = ({ children, color = "orange" }) => (
     <div className={`bg-${color}-100 border-4 border-${color}-300 rounded-3xl px-6 py-3 mb-4 flex-shrink-0 shadow-md`}>
       <p className={`text-2xl font-black text-${color}-700 word-keep text-center`}>👉 {children}</p>
@@ -1150,39 +1171,46 @@ const App = () => {
           <SoundToggle />
           <HelpButton />
 
-          {/* 상단 헤더 */}
+          {/* 상단: 홈 / 단계 표시 / 진행도 */}
           <div className="w-full flex justify-between items-center mb-3 z-20 flex-shrink-0 px-2">
             <button onClick={() => window.location.reload()}
               className="p-3 bg-white rounded-2xl shadow-md border-2 border-slate-200 text-slate-500 hover:text-orange-500">
               <Home size={28} />
             </button>
-            <div className="bg-white px-6 py-2 rounded-full shadow-md border-2 border-orange-200 font-black text-orange-600 flex items-center gap-2 text-2xl">
+            <div className="flex items-center gap-2">
+              <div className="bg-orange-500 text-white px-4 py-2 rounded-full font-black text-sm shadow-md">
+                STEP 1 / 3
+              </div>
+              <div className="bg-white border-2 border-orange-300 px-4 py-2 rounded-full font-black text-orange-700 text-base shadow-sm">
+                문장 만들기
+              </div>
+            </div>
+            <div className="bg-white px-4 py-2 rounded-full shadow-md border-2 border-orange-200 font-black text-orange-600 flex items-center gap-2 text-xl">
               {isReviewMode ? (
-                <span className="text-red-500 flex items-center gap-2"><RefreshCcw size={24} /> 복습 중</span>
+                <span className="text-red-500 flex items-center gap-1"><RefreshCcw size={20} /> 복습</span>
               ) : (
-                <span>📖 {qIndex + 1} / {currentQList.length}</span>
+                <span>📖 {qIndex + 1}/{currentQList.length}</span>
               )}
             </div>
-            <div className="w-[52px]"></div>
           </div>
 
-          {/* 활동 안내 */}
-          <ActivityGuide color="orange">
-            그림을 보고 낱말 카드를 <span className="text-red-600">순서대로</span> 눌러봐요!
-          </ActivityGuide>
-
           {/* 메인 카드 */}
-          <div className="flex-1 bg-white rounded-[2.5rem] shadow-2xl p-6 text-center border-b-8 border-orange-200 relative z-10 flex flex-col justify-between overflow-hidden">
+          <div className="flex-1 bg-white rounded-[2.5rem] shadow-2xl p-5 text-center border-b-8 border-orange-200 relative z-10 flex flex-col justify-between overflow-hidden">
             {/* 그림 */}
             <div className="flex-shrink-0 mb-2">
               <span className="text-9xl block animate-bounce-slow filter drop-shadow-lg">{currentQ.img}</span>
             </div>
 
+            {/* 답안 영역 위 안내 */}
+            <InlineGuide color="orange">
+              낱말이 <span className="text-red-600">순서대로</span> 여기로 올라와요!
+            </InlineGuide>
+
             {/* 답안 영역 */}
-            <div className="w-full min-h-[130px] bg-orange-50 rounded-3xl border-4 border-dashed border-orange-300 drop-zone flex flex-col items-center justify-center p-3 mb-3 transition-all relative flex-shrink-0">
+            <div className="w-full min-h-[120px] bg-orange-50 rounded-3xl border-4 border-dashed border-orange-300 drop-zone flex flex-col items-center justify-center p-3 mb-2 transition-all relative flex-shrink-0">
               {selectedPieces.length === 0 && (
                 <span className="text-orange-500 font-black text-2xl absolute animate-pulse word-keep">
-                  ⬇️ 낱말이 여기로 올라와요 ⬇️
+                  ⬇️ 아래 낱말을 눌러보세요 ⬇️
                 </span>
               )}
               <Reorder.Group axis="x" values={selectedPieces} onReorder={handleReorder}
@@ -1210,8 +1238,13 @@ const App = () => {
               )}
             </div>
 
+            {/* 셔플 카드 위 안내 */}
+            <InlineGuide color="yellow">
+              아래 낱말 카드를 눌러요. 한 번 더 누르면 내려와요!
+            </InlineGuide>
+
             {/* 셔플 카드 */}
-            <div className="flex flex-wrap justify-center items-center gap-3 mb-3 flex-shrink-0 min-h-[80px]">
+            <div className="flex flex-wrap justify-center items-center gap-3 mb-3 flex-shrink-0 min-h-[70px]">
               {shuffledPieces.map((p, i) => (
                 <motion.button layoutId={`shuf-${p}`} key={`${p}-${i}`}
                   onClick={() => handlePieceClick(p, 'shuffled')}
@@ -1243,17 +1276,23 @@ const App = () => {
           <SoundToggle />
           <HelpButton />
 
-          <ActivityGuide color="green">
-            완성한 문장을 <span className="text-red-600">큰 소리</span>로 읽고 녹음해요! 🎤
-          </ActivityGuide>
+          {/* 상단: 단계 표시만 */}
+          <div className="flex items-center justify-center gap-2 mb-3 flex-shrink-0">
+            <div className="bg-green-500 text-white px-4 py-2 rounded-full font-black text-sm shadow-md">
+              STEP 2 / 3
+            </div>
+            <div className="bg-white border-2 border-green-300 px-4 py-2 rounded-full font-black text-green-700 text-base shadow-sm">
+              소리 내어 읽기
+            </div>
+          </div>
 
-          <div className="flex-1 bg-white rounded-[2.5rem] shadow-2xl p-6 text-center border-b-8 border-green-200 flex flex-col">
+          <div className="flex-1 bg-white rounded-[2.5rem] shadow-2xl p-5 text-center border-b-8 border-green-200 flex flex-col">
             {/* 그림 + 문장 */}
             <div className="flex-1 flex flex-col items-center justify-center">
-              <div className="text-7xl mb-3 filter drop-shadow-md">{currentQ.img}</div>
+              <div className="text-6xl mb-2 filter drop-shadow-md">{currentQ.img}</div>
 
               {/* 완성 문장 박스 (하이라이트 적용) */}
-              <div className="p-5 rounded-[1.5rem] mb-3 w-full border-4 bg-green-50 border-green-300 shadow-inner">
+              <div className="p-4 rounded-[1.5rem] mb-2 w-full border-4 bg-green-50 border-green-300 shadow-inner">
                 <p className="text-4xl font-black text-slate-800 word-keep leading-relaxed">
                   {sentenceWords.map((w, i) => (
                     <span key={i} className={highlightWordIdx === i ? 'tts-highlight' : ''}>
@@ -1271,7 +1310,7 @@ const App = () => {
 
               {/* 실시간 STT 화면 */}
               {(isRecording || transcript || interimTranscript) && (
-                <div className="w-full bg-yellow-50 border-3 border-yellow-300 rounded-2xl p-3 mb-3 min-h-[60px]">
+                <div className="w-full bg-yellow-50 border-3 border-yellow-300 rounded-2xl p-3 mb-2 min-h-[60px]">
                   <p className="text-sm font-bold text-yellow-700 mb-1">🎙️ 내가 말한 내용:</p>
                   <p className="text-2xl font-black text-slate-700 word-keep">
                     {transcript} <span className="text-slate-400">{interimTranscript}</span>
@@ -1284,7 +1323,7 @@ const App = () => {
 
               {/* 키보드 입력 모드 */}
               {useKeyboard && (
-                <div className="w-full bg-blue-50 border-3 border-blue-300 rounded-2xl p-3 mb-3">
+                <div className="w-full bg-blue-50 border-3 border-blue-300 rounded-2xl p-3 mb-2">
                   <p className="text-sm font-bold text-blue-700 mb-2">⌨️ 키보드로 입력하기:</p>
                   <input
                     type="text"
@@ -1301,6 +1340,14 @@ const App = () => {
                 </div>
               )}
             </div>
+
+            {/* 녹음 버튼 위 안내 */}
+            <InlineGuide color="green">
+              {!isRecording
+                ? <>🎤 <span className="text-red-600">녹음 시작</span> 버튼을 눌러 큰 소리로 읽어요!</>
+                : <>🔴 지금 녹음 중! 다 읽으면 <span className="text-red-600">녹음 종료</span>를 눌러요</>
+              }
+            </InlineGuide>
 
             {/* 녹음 컨트롤 */}
             <div className="flex gap-2 w-full flex-shrink-0">
@@ -1346,19 +1393,27 @@ const App = () => {
       return (
         <div className="flex flex-col h-full w-full bg-gradient-to-br from-pink-50 to-yellow-50 p-6 relative select-none rounded-[3rem]">
           <SoundToggle />
-          <ActivityGuide color="yellow">
-            오늘 활동을 얼마나 잘했나요? 별을 눌러서 평가해봐요! ⭐
-          </ActivityGuide>
+
+          {/* 상단: 단계 표시만 */}
+          <div className="flex items-center justify-center gap-2 mb-3 flex-shrink-0">
+            <div className="bg-yellow-500 text-white px-4 py-2 rounded-full font-black text-sm shadow-md">
+              STEP 3 / 3
+            </div>
+            <div className="bg-white border-2 border-yellow-400 px-4 py-2 rounded-full font-black text-yellow-700 text-base shadow-sm">
+              나의 평가
+            </div>
+          </div>
+
           <div className="flex-1 bg-white rounded-[2.5rem] shadow-2xl p-8 flex flex-col items-center justify-center border-b-8 border-yellow-200">
             <div className="text-7xl mb-4">🌟</div>
             <h2 className="text-4xl font-black text-orange-700 mb-3 word-keep text-center">
               나에게 별을 몇 개 줄까요?
             </h2>
-            <p className="text-xl text-slate-500 mb-6 word-keep text-center">
+            <p className="text-xl text-slate-500 mb-4 word-keep text-center">
               열심히 했다면 별 5개! 더 노력할 수 있다면 별 1~3개!
             </p>
 
-            <div className="flex gap-3 mb-6">
+            <div className="flex gap-3 mb-4">
               {[1, 2, 3, 4, 5].map(n => (
                 <motion.button key={n}
                   onClick={() => { if (isSoundOn) playPop(); setSelfRating(n); }}
@@ -1370,9 +1425,16 @@ const App = () => {
               ))}
             </div>
 
-            <div className="bg-yellow-100 px-6 py-3 rounded-full mb-6">
+            {/* 별점 아래 안내 */}
+            {selfRating > 0 && (
+              <InlineGuide color="yellow">
+                별을 골랐어요! 다짐 한마디를 적거나 말해봐요 💬
+              </InlineGuide>
+            )}
+
+            <div className="bg-yellow-100 px-6 py-3 rounded-full mb-4">
               <p className="text-2xl font-black text-orange-700">
-                {selfRating === 0 && "별을 눌러주세요"}
+                {selfRating === 0 && "👇 별을 눌러주세요"}
                 {selfRating === 1 && "다시 해보면 더 잘할 수 있어요! 💪"}
                 {selfRating === 2 && "조금 더 노력해봐요! 🌱"}
                 {selfRating === 3 && "괜찮았어요! 한 번 더? 😊"}
@@ -1383,20 +1445,72 @@ const App = () => {
 
             {selfRating > 0 && (
               <div className="w-full max-w-xl">
-                <p className="text-lg font-bold text-slate-600 mb-2">💬 한마디 다짐 (선택)</p>
+                <div className="flex items-center justify-between mb-2">
+                  <p className="text-lg font-bold text-slate-600">💬 한마디 다짐 (선택)</p>
+                  {reflectionRecording !== 'selfReflection' ? (
+                    <button onClick={() => {
+                      const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+                      if (!SpeechRecognition) {
+                        alert("이 브라우저는 음성 입력을 지원하지 않아요.");
+                        return;
+                      }
+                      if (reflectionRecognitionRef.current) {
+                        try { reflectionRecognitionRef.current.stop(); } catch (e) {}
+                      }
+                      if (isSoundOn) playPop();
+                      const recognition = new SpeechRecognition();
+                      recognition.lang = 'ko-KR';
+                      recognition.continuous = true;
+                      recognition.interimResults = true;
+                      const baseText = selfReflection ? selfReflection + ' ' : '';
+                      let appended = '';
+                      recognition.onresult = (event) => {
+                        let interim = '';
+                        let newFinal = '';
+                        for (let i = event.resultIndex; i < event.results.length; i++) {
+                          const res = event.results[i];
+                          if (res.isFinal) newFinal += res[0].transcript + ' ';
+                          else interim += res[0].transcript;
+                        }
+                        if (newFinal) appended += newFinal;
+                        setSelfReflection((baseText + appended + interim).trim());
+                      };
+                      recognition.onerror = () => { setReflectionRecording(null); reflectionRecognitionRef.current = null; };
+                      recognition.onend = () => { setReflectionRecording(null); reflectionRecognitionRef.current = null; };
+                      recognition.start();
+                      reflectionRecognitionRef.current = recognition;
+                      setReflectionRecording('selfReflection');
+                    }}
+                      className="px-3 py-2 bg-yellow-500 hover:bg-yellow-600 text-white rounded-xl font-black text-sm shadow-md active:scale-95 flex items-center gap-1 transition-all">
+                      <Mic size={16} /> 말하기
+                    </button>
+                  ) : (
+                    <button onClick={() => {
+                      if (reflectionRecognitionRef.current) {
+                        try { reflectionRecognitionRef.current.stop(); } catch (e) {}
+                        reflectionRecognitionRef.current = null;
+                      }
+                      setReflectionRecording(null);
+                      if (isSoundOn) playPop();
+                    }}
+                      className="px-3 py-2 bg-red-500 hover:bg-red-600 text-white rounded-xl font-black text-sm shadow-md active:scale-95 flex items-center gap-1 transition-all animate-pulse">
+                      <Square size={16} /> 멈추기
+                    </button>
+                  )}
+                </div>
                 <input
                   type="text"
                   value={selfReflection}
                   onChange={(e) => setSelfReflection(e.target.value)}
-                  placeholder="예: 다음에는 더 큰 소리로 읽을 거예요!"
-                  className="w-full p-4 text-xl border-3 border-yellow-300 rounded-2xl focus:outline-none focus:border-orange-400"
+                  placeholder={reflectionRecording === 'selfReflection' ? "🎙️ 말씀해주세요..." : "예: 다음에는 더 큰 소리로 읽을 거예요!"}
+                  className={`w-full p-4 text-xl border-3 ${reflectionRecording === 'selfReflection' ? 'border-yellow-500 bg-yellow-50 animate-glow' : 'border-yellow-300'} rounded-2xl focus:outline-none focus:border-orange-400`}
                 />
               </div>
             )}
 
             <button onClick={handleSelfEvalNext}
               disabled={selfRating === 0}
-              className="w-full max-w-xl mt-6 py-5 bg-orange-500 hover:bg-orange-600 disabled:bg-slate-300 text-white rounded-3xl font-black text-3xl shadow-xl active:scale-95 transition-all flex items-center justify-center gap-2">
+              className="w-full max-w-xl mt-4 py-5 bg-orange-500 hover:bg-orange-600 disabled:bg-slate-300 text-white rounded-3xl font-black text-3xl shadow-xl active:scale-95 transition-all flex items-center justify-center gap-2">
               {selfRating > 0 && selfRating <= 3 ? '한 번 더 도전! 🔄' : '다음으로 →'}
             </button>
           </div>
@@ -1406,52 +1520,152 @@ const App = () => {
 
     // ----- 배움 정리 / 성찰 -----
     if (phase === 'reflection') {
+      const startReflectionVoice = (key) => {
+        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+        if (!SpeechRecognition) {
+          alert("이 브라우저는 음성 입력을 지원하지 않아요. 키보드로 입력해주세요.");
+          return;
+        }
+        // 다른 녹음 중이면 정지
+        if (reflectionRecognitionRef.current) {
+          try { reflectionRecognitionRef.current.stop(); } catch (e) {}
+          reflectionRecognitionRef.current = null;
+        }
+        if (isSoundOn) playPop();
+        const recognition = new SpeechRecognition();
+        recognition.lang = 'ko-KR';
+        recognition.continuous = true;
+        recognition.interimResults = true;
+
+        let finalText = reflectionAnswers[key] || '';
+        const baseText = finalText ? finalText + ' ' : '';
+        let appended = '';
+
+        recognition.onresult = (event) => {
+          let interim = '';
+          let newFinal = '';
+          for (let i = event.resultIndex; i < event.results.length; i++) {
+            const res = event.results[i];
+            if (res.isFinal) newFinal += res[0].transcript + ' ';
+            else interim += res[0].transcript;
+          }
+          if (newFinal) appended += newFinal;
+          setReflectionAnswers(prev => ({
+            ...prev,
+            [key]: (baseText + appended + interim).trim()
+          }));
+        };
+        recognition.onerror = (e) => {
+          console.warn("성찰 STT 오류:", e.error);
+          setReflectionRecording(null);
+          reflectionRecognitionRef.current = null;
+        };
+        recognition.onend = () => {
+          setReflectionRecording(null);
+          reflectionRecognitionRef.current = null;
+        };
+        recognition.start();
+        reflectionRecognitionRef.current = recognition;
+        setReflectionRecording(key);
+      };
+
+      const stopReflectionVoice = () => {
+        if (reflectionRecognitionRef.current) {
+          try { reflectionRecognitionRef.current.stop(); } catch (e) {}
+          reflectionRecognitionRef.current = null;
+        }
+        setReflectionRecording(null);
+        if (isSoundOn) playPop();
+      };
+
+      const ReflectionItem = ({ icon, label, color, value, fieldKey, placeholder }) => {
+        const isRecordingThis = reflectionRecording === fieldKey;
+        return (
+          <div>
+            <div className="flex items-center justify-between mb-2">
+              <p className={`text-xl font-black text-${color}-700 flex items-center gap-2`}>
+                {icon} {label}
+              </p>
+              {!isRecordingThis ? (
+                <button onClick={() => startReflectionVoice(fieldKey)}
+                  className={`px-3 py-2 bg-${color}-500 hover:bg-${color}-600 text-white rounded-xl font-black text-sm shadow-md active:scale-95 flex items-center gap-1 transition-all`}>
+                  <Mic size={16} /> 말하기
+                </button>
+              ) : (
+                <button onClick={stopReflectionVoice}
+                  className="px-3 py-2 bg-red-500 hover:bg-red-600 text-white rounded-xl font-black text-sm shadow-md active:scale-95 flex items-center gap-1 transition-all animate-pulse">
+                  <Square size={16} /> 멈추기
+                </button>
+              )}
+            </div>
+            <div className="relative">
+              <textarea
+                value={value}
+                onChange={(e) => setReflectionAnswers(prev => ({...prev, [fieldKey]: e.target.value}))}
+                placeholder={isRecordingThis ? "🎙️ 말씀해주세요... 자동으로 글자가 나타나요!" : placeholder}
+                className={`w-full p-3 text-xl border-3 ${isRecordingThis ? `border-${color}-500 bg-${color}-50 animate-glow` : `border-${color}-200`} rounded-2xl focus:outline-none focus:border-${color}-400 resize-none`}
+                rows={2}
+              />
+              {value && (
+                <button onClick={() => setReflectionAnswers(prev => ({...prev, [fieldKey]: ''}))}
+                  className="absolute top-2 right-2 text-slate-400 hover:text-red-500 text-sm">
+                  지우기
+                </button>
+              )}
+            </div>
+          </div>
+        );
+      };
+
       return (
         <div className="flex flex-col h-full w-full bg-gradient-to-br from-purple-50 to-pink-50 p-5 relative select-none rounded-[3rem]">
           <SoundToggle />
-          <ActivityGuide color="purple">
-            오늘 무엇을 배웠는지 정리해봐요! 📝
-          </ActivityGuide>
-          <div className="flex-1 bg-white rounded-[2.5rem] shadow-2xl p-6 overflow-y-auto custom-scrollbar border-b-8 border-purple-200">
-            <div className="space-y-4">
-              <div>
-                <p className="text-xl font-black text-purple-700 mb-2 flex items-center gap-2">
-                  <Lightbulb size={24} /> 오늘 무엇을 배웠나요?
-                </p>
-                <textarea
-                  value={reflectionAnswers.what}
-                  onChange={(e) => setReflectionAnswers({...reflectionAnswers, what: e.target.value})}
-                  placeholder="예: 그림을 보고 어울리는 문장 만들기를 배웠어요"
-                  className="w-full p-3 text-xl border-3 border-purple-200 rounded-2xl focus:outline-none focus:border-purple-400 resize-none"
-                  rows={2}
-                />
-              </div>
-              <div>
-                <p className="text-xl font-black text-pink-700 mb-2 flex items-center gap-2">
-                  <Heart size={24} /> 어떤 부분이 재미있었나요?
-                </p>
-                <textarea
-                  value={reflectionAnswers.how}
-                  onChange={(e) => setReflectionAnswers({...reflectionAnswers, how: e.target.value})}
-                  placeholder="예: 낱말 카드를 옮기는 게 재미있었어요"
-                  className="w-full p-3 text-xl border-3 border-pink-200 rounded-2xl focus:outline-none focus:border-pink-400 resize-none"
-                  rows={2}
-                />
-              </div>
-              <div>
-                <p className="text-xl font-black text-blue-700 mb-2 flex items-center gap-2">
-                  <BookOpen size={24} /> 다음에는 무엇을 더 해볼까요?
-                </p>
-                <textarea
-                  value={reflectionAnswers.next}
-                  onChange={(e) => setReflectionAnswers({...reflectionAnswers, next: e.target.value})}
-                  placeholder="예: 더 긴 문장도 만들어보고 싶어요"
-                  className="w-full p-3 text-xl border-3 border-blue-200 rounded-2xl focus:outline-none focus:border-blue-400 resize-none"
-                  rows={2}
-                />
-              </div>
+
+          {/* 상단: 단계 표시만 */}
+          <div className="flex items-center justify-center gap-2 mb-3 flex-shrink-0">
+            <div className="bg-purple-500 text-white px-4 py-2 rounded-full font-black text-sm shadow-md">
+              마무리
             </div>
-            <button onClick={() => { if (isSoundOn) playPop(); setPhase('report'); }}
+            <div className="bg-white border-2 border-purple-300 px-4 py-2 rounded-full font-black text-purple-700 text-base shadow-sm">
+              배움 정리
+            </div>
+          </div>
+
+          <div className="flex-1 bg-white rounded-[2.5rem] shadow-2xl p-5 overflow-y-auto custom-scrollbar border-b-8 border-purple-200">
+            <div className="space-y-4">
+              <ReflectionItem
+                icon={<Lightbulb size={24} />}
+                label="오늘 무엇을 배웠나요?"
+                color="purple"
+                value={reflectionAnswers.what}
+                fieldKey="what"
+                placeholder="🎤 말하기 버튼을 누르거나 키보드로 적어요"
+              />
+              <ReflectionItem
+                icon={<Heart size={24} />}
+                label="어떤 부분이 재미있었나요?"
+                color="pink"
+                value={reflectionAnswers.how}
+                fieldKey="how"
+                placeholder="🎤 말하기 버튼을 누르거나 키보드로 적어요"
+              />
+              <ReflectionItem
+                icon={<BookOpen size={24} />}
+                label="다음에는 무엇을 더 해볼까요?"
+                color="blue"
+                value={reflectionAnswers.next}
+                fieldKey="next"
+                placeholder="🎤 말하기 버튼을 누르거나 키보드로 적어요"
+              />
+            </div>
+            <button onClick={() => {
+              if (reflectionRecognitionRef.current) {
+                try { reflectionRecognitionRef.current.stop(); } catch (e) {}
+                reflectionRecognitionRef.current = null;
+              }
+              if (isSoundOn) playPop();
+              setPhase('report');
+            }}
               className="w-full mt-5 py-5 bg-purple-500 hover:bg-purple-600 text-white rounded-3xl font-black text-3xl shadow-xl active:scale-95 transition-all flex items-center justify-center gap-2">
               배움기록표 보기 📊
             </button>
