@@ -5,7 +5,13 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>그림에 어울리는 문장 완성하기</title>
 <script src="https://cdn.tailwindcss.com"></script>
-<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+<script src="https://unpkg.com/@babel/standalone@7.23.5/babel.min.js"></script>
+<script>
+// Babel JSX classic runtime 강제 설정 (react/jsx-runtime 오류 방지)
+window.Babel.registerPreset('react-classic', {
+  presets: [[window.Babel.availablePresets['react'], { runtime: 'classic' }]]
+});
+</script>
 <link href="https://fonts.googleapis.com/css2?family=Gaegu:wght@400;700&family=Jua&family=Nanum+Pen+Script&display=swap" rel="stylesheet">
 <style>
   * { font-family: 'Jua', 'Gaegu', sans-serif; }
@@ -94,7 +100,7 @@
 </head>
 <body>
 <div id="root"></div>
-<script type="text/babel" data-type="module">
+<script type="text/babel" data-type="module" data-presets="react-classic,env">
 import React, { useState, useEffect, useRef, useCallback } from 'https://esm.sh/react@18.2.0';
 import { createRoot } from 'https://esm.sh/react-dom@18.2.0/client';
 import { motion, AnimatePresence, Reorder } from 'https://esm.sh/framer-motion@10.16.4?deps=react@18.2.0,react-dom@18.2.0';
@@ -1526,7 +1532,6 @@ const App = () => {
           alert("이 브라우저는 음성 입력을 지원하지 않아요. 키보드로 입력해주세요.");
           return;
         }
-        // 다른 녹음 중이면 정지
         if (reflectionRecognitionRef.current) {
           try { reflectionRecognitionRef.current.stop(); } catch (e) {}
           reflectionRecognitionRef.current = null;
@@ -1537,8 +1542,7 @@ const App = () => {
         recognition.continuous = true;
         recognition.interimResults = true;
 
-        let finalText = reflectionAnswers[key] || '';
-        const baseText = finalText ? finalText + ' ' : '';
+        const baseText = reflectionAnswers[key] ? reflectionAnswers[key] + ' ' : '';
         let appended = '';
 
         recognition.onresult = (event) => {
@@ -1578,7 +1582,7 @@ const App = () => {
         if (isSoundOn) playPop();
       };
 
-      const ReflectionItem = ({ icon, label, color, value, fieldKey, placeholder }) => {
+      const renderReflectionItem = (icon, label, color, value, fieldKey, placeholder) => {
         const isRecordingThis = reflectionRecording === fieldKey;
         return (
           <div>
@@ -1633,30 +1637,30 @@ const App = () => {
 
           <div className="flex-1 bg-white rounded-[2.5rem] shadow-2xl p-5 overflow-y-auto custom-scrollbar border-b-8 border-purple-200">
             <div className="space-y-4">
-              <ReflectionItem
-                icon={<Lightbulb size={24} />}
-                label="오늘 무엇을 배웠나요?"
-                color="purple"
-                value={reflectionAnswers.what}
-                fieldKey="what"
-                placeholder="🎤 말하기 버튼을 누르거나 키보드로 적어요"
-              />
-              <ReflectionItem
-                icon={<Heart size={24} />}
-                label="어떤 부분이 재미있었나요?"
-                color="pink"
-                value={reflectionAnswers.how}
-                fieldKey="how"
-                placeholder="🎤 말하기 버튼을 누르거나 키보드로 적어요"
-              />
-              <ReflectionItem
-                icon={<BookOpen size={24} />}
-                label="다음에는 무엇을 더 해볼까요?"
-                color="blue"
-                value={reflectionAnswers.next}
-                fieldKey="next"
-                placeholder="🎤 말하기 버튼을 누르거나 키보드로 적어요"
-              />
+              {renderReflectionItem(
+                <Lightbulb size={24} />,
+                "오늘 무엇을 배웠나요?",
+                "purple",
+                reflectionAnswers.what,
+                "what",
+                "🎤 말하기 버튼을 누르거나 키보드로 적어요"
+              )}
+              {renderReflectionItem(
+                <Heart size={24} />,
+                "어떤 부분이 재미있었나요?",
+                "pink",
+                reflectionAnswers.how,
+                "how",
+                "🎤 말하기 버튼을 누르거나 키보드로 적어요"
+              )}
+              {renderReflectionItem(
+                <BookOpen size={24} />,
+                "다음에는 무엇을 더 해볼까요?",
+                "blue",
+                reflectionAnswers.next,
+                "next",
+                "🎤 말하기 버튼을 누르거나 키보드로 적어요"
+              )}
             </div>
             <button onClick={() => {
               if (reflectionRecognitionRef.current) {
